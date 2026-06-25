@@ -67,18 +67,23 @@
     .flicker { animation: flicker 6s infinite; }
   </style>
 
-  <!-- React + Framer Motion vía ESM -->
-  <script type="importmap">
-    {
-      "imports": {
-        "react": "https://esm.sh/react@18.3.1",
-        "react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
-        "framer-motion": "https://esm.sh/framer-motion@11.3.19?external=react,react-dom"
-      }
+  <!-- React, ReactDOM y Framer Motion como librerías clásicas (UMD) -->
+  <script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/framer-motion@11.3.19/dist/framer-motion.js"></script>
+  <script>
+    // Respaldo: si la versión principal no expuso el global, probamos otras (síncrono).
+    if (!(window.Motion || window.FramerMotion)) {
+      document.write('<script crossorigin src="https://cdn.jsdelivr.net/npm/framer-motion@11.3.19/dist/framer-motion.js"><\/script>');
+    }
+  </script>
+  <script>
+    if (!(window.Motion || window.FramerMotion)) {
+      document.write('<script crossorigin src="https://unpkg.com/framer-motion@6.5.1/dist/framer-motion.js"><\/script>');
     }
   </script>
 
-  <!-- Babel para transpilar JSX dentro de un módulo -->
+  <!-- Babel para transpilar JSX en el navegador -->
   <script src="https://unpkg.com/@babel/standalone@7.25.6/babel.min.js"></script>
 </head>
 <body>
@@ -88,10 +93,30 @@
     </div>
   </div>
 
-  <script type="text/babel" data-type="module" data-presets="react">
-    import React, { useState, useEffect, useCallback, useRef } from "react";
-    import { createRoot } from "react-dom/client";
-    import { motion, AnimatePresence } from "framer-motion";
+  <script type="text/babel" data-presets="react">
+    const { useState, useEffect, useCallback, useRef } = React;
+
+    // Framer Motion (UMD) con plan B: si no carga, las cosas se muestran sin animación
+    const __FM = window.Motion || window.FramerMotion || null;
+    const __cache = {};
+    const motion = (__FM && __FM.motion) ? __FM.motion : new Proxy({}, {
+      get(_, tag) {
+        if (!__cache[tag]) {
+          __cache[tag] = React.forwardRef((props, ref) => {
+            const clean = Object.assign({}, props);
+            ["initial","animate","exit","transition","variants","whileHover","whileTap",
+             "whileInView","custom","layout","layoutId","drag","style"].forEach((k) => {
+              if (k !== "style") delete clean[k];
+            });
+            // mantenemos style si era objeto plano
+            return React.createElement(typeof tag === "string" ? tag : "div",
+              Object.assign({ ref }, clean));
+          });
+        }
+        return __cache[tag];
+      }
+    });
+    const AnimatePresence = (__FM && __FM.AnimatePresence) ? __FM.AnimatePresence : (p) => p.children;
 
     /* ============================================================
        PALETA / HELPERS
@@ -897,7 +922,7 @@
       );
     }
 
-    createRoot(document.getElementById("root")).render(<App />);
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
   </script>
 </body>
 </html>
