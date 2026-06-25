@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SYSTEM // HISTORIA GLOBAL XIV–XVIII</title>
+
+  <!-- Tailwind (Play CDN) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Fuentes técnicas -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            mono: ['"JetBrains Mono"', 'monospace'],
+            sans: ['Inter', 'sans-serif'],
+          },
+          colors: {
+            cyan: { neon: '#22d3ee' },
+            amber: { neon: '#fbbf24' },
+            ink: '#04070d',
+          },
+        },
+      },
+    };
+  </script>
+
+  <style>
+    html, body, #root { height: 100%; margin: 0; background: #04070d; }
+    body { overflow: hidden; }
+    ::selection { background: rgba(34,211,238,.3); }
+
+    /* Scrollbar minimal */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-thumb { background: rgba(34,211,238,.25); border-radius: 99px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+
+    /* Grid de fondo HUD */
+    .hud-grid {
+      background-image:
+        linear-gradient(rgba(34,211,238,.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(34,211,238,.05) 1px, transparent 1px);
+      background-size: 46px 46px;
+    }
+    .scanlines::after {
+      content: "";
+      position: absolute; inset: 0; pointer-events: none;
+      background: repeating-linear-gradient(0deg, rgba(0,0,0,.18) 0, rgba(0,0,0,.18) 1px, transparent 1px, transparent 3px);
+      mix-blend-mode: overlay; opacity: .35;
+    }
+    .glass {
+      background: rgba(12,18,28,.55);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(255,255,255,.07);
+    }
+    .text-glow-cyan { text-shadow: 0 0 18px rgba(34,211,238,.55); }
+    .text-glow-amber { text-shadow: 0 0 18px rgba(251,191,36,.5); }
+    .box-glow-cyan { box-shadow: 0 0 0 1px rgba(34,211,238,.18), 0 18px 60px -20px rgba(34,211,238,.35); }
+    @keyframes flicker { 0%,100%{opacity:1} 92%{opacity:1} 94%{opacity:.55} 96%{opacity:1} }
+    .flicker { animation: flicker 6s infinite; }
+  </style>
+
+  <!-- React + Framer Motion vía ESM -->
+  <script type="importmap">
+    {
+      "imports": {
+        "react": "https://esm.sh/react@18.3.1",
+        "react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
+        "framer-motion": "https://esm.sh/framer-motion@11.3.19?external=react,react-dom"
+      }
+    }
+  </script>
+
+  <!-- Babel para transpilar JSX dentro de un módulo -->
+  <script src="https://unpkg.com/@babel/standalone@7.25.6/babel.min.js"></script>
+</head>
+<body>
+  <div id="root">
+    <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#22d3ee;font-family:'JetBrains Mono',monospace;font-size:13px;letter-spacing:.2em">
+      INICIANDO SISTEMA<span class="flicker">_</span>
+    </div>
+  </div>
+
+  <script type="text/babel" data-type="module" data-presets="react">
+    import React, { useState, useEffect, useCallback, useRef } from "react";
+    import { createRoot } from "react-dom/client";
+    import { motion, AnimatePresence } from "framer-motion";
+
+    /* ============================================================
+       PALETA / HELPERS
+    ============================================================ */
+    const CYAN = "#22d3ee";
+    const AMBER = "#fbbf24";
+
+    const ease = [0.16, 1, 0.3, 1];
+
+    const stagger = (i = 0, base = 0.0) => ({
+      initial: { opacity: 0, y: 24, filter: "blur(6px)" },
+      animate: { opacity: 1, y: 0, filter: "blur(0px)" },
+      transition: { duration: 0.7, ease, delay: base + i * 0.08 },
+    });
+
+    /* ============================================================
+       MARCO HUD GLOBAL
+    ============================================================ */
+    function CornerBrackets() {
+      const C = ({ style }) => (
+        <div className="absolute w-7 h-7 border-cyan-neon/40" style={style} />
+      );
+      return (
+        <div className="pointer-events-none absolute inset-5 z-30">
+          <C style={{ top: 0, left: 0, borderTop: "1px solid", borderLeft: "1px solid" }} />
+          <C style={{ top: 0, right: 0, borderTop: "1px solid", borderRight: "1px solid" }} />
+          <C style={{ bottom: 0, left: 0, borderBottom: "1px solid", borderLeft: "1px solid" }} />
+          <C style={{ bottom: 0, right: 0, borderBottom: "1px solid", borderRight: "1px solid" }} />
+        </div>
+      );
+    }
+
+    function Clock() {
+      const [t, setT] = useState("");
+      useEffect(() => {
+        const f = () =>
+          setT(new Date().toLocaleTimeString("es-AR", { hour12: false }));
+        f();
+        const id = setInterval(f, 1000);
+        return () => clearInterval(id);
+      }, []);
+      return <span className="tabular-nums">{t}</span>;
+    }
+
+    function HUDFrame({ index, total, label }) {
+      return (
+        <>
+          <CornerBrackets />
+          {/* Top bar */}
+          <div className="pointer-events-none absolute top-7 left-10 right-10 z-30 flex items-center justify-between font-mono text-[10px] tracking-[0.25em] text-cyan-neon/60">
+            <div className="flex items-center gap-3">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-cyan-neon shadow-[0_0_10px_#22d3ee] animate-pulse" />
+              <span>HUD//OS · v4.8</span>
+            </div>
+            <div className="hidden sm:block text-cyan-neon/40">{label}</div>
+            <div className="flex items-center gap-4">
+              <Clock />
+              <span>REC ●</span>
+            </div>
+          </div>
+          {/* Bottom bar */}
+          <div className="pointer-events-none absolute bottom-7 left-10 right-10 z-30 flex items-center justify-between font-mono text-[10px] tracking-[0.25em] text-white/30">
+            <span>HISTORIA GLOBAL · SIGLOS XIV–XVIII</span>
+            <span className="text-cyan-neon/50">
+              {String(index + 1).padStart(2, "0")} / {String(total).padStart(2, "0")}
+            </span>
+          </div>
+        </>
+      );
+    }
+
+    /* Etiqueta de sección reutilizable */
+    function Tag({ children, color = CYAN }) {
+      return (
+        <span
+          className="inline-flex items-center gap-2 px-3 py-1 rounded-full font-mono text-[10px] tracking-[0.3em] uppercase"
+          style={{ color, border: `1px solid ${color}33`, background: `${color}0d` }}
+        >
+          <span className="w-1 h-1 rounded-full" style={{ background: color, boxShadow: `0 0 8px ${color}` }} />
+          {children}
+        </span>
+      );
+    }
+
+    /* Tarjeta de vidrio con hover */
+    function GlassCard({ children, className = "", accent = CYAN, ...rest }) {
+      return (
+        <motion.div
+          whileHover={{ scale: 1.025, y: -4 }}
+          transition={{ type: "spring", stiffness: 260, damping: 20 }}
+          className={`glass rounded-2xl p-5 relative overflow-hidden group ${className}`}
+          {...rest}
+        >
+          <div
+            className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
+            style={{ boxShadow: `inset 0 0 40px ${accent}22`, border: `1px solid ${accent}44`, borderRadius: 16 }}
+          />
+          {children}
+        </motion.div>
+      );
+    }
+
+    /* ============================================================
+       INTRO DE CAPÍTULO — "BOOT / SCAN" FULLSCREEN
+    ============================================================ */
+    function BootScan({ code, title, subtitle, color = CYAN }) {
+      const lines = [
+        "> init sequence ...... OK",
+        "> cargando módulo histórico ...... OK",
+        "> verificando integridad de datos ...... OK",
+        `> objetivo: ${title}`,
+      ];
+      return (
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center overflow-hidden bg-ink">
+          {/* barrido horizontal */}
+          <motion.div
+            initial={{ y: "-120%" }}
+            animate={{ y: "120%" }}
+            transition={{ duration: 1.4, ease: "easeInOut", delay: 0.1 }}
+            className="absolute left-0 right-0 h-40 z-20"
+            style={{ background: `linear-gradient(180deg, transparent, ${color}22, transparent)` }}
+          />
+          <motion.div
+            initial={{ scaleX: 0 }}
+            animate={{ scaleX: 1 }}
+            transition={{ duration: 0.6, ease }}
+            className="absolute top-1/2 left-0 right-0 h-px origin-left"
+            style={{ background: color, boxShadow: `0 0 18px ${color}` }}
+          />
+
+          {/* terminal */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.3 }}
+            className="font-mono text-[11px] sm:text-xs space-y-1 mb-10 text-left w-[min(90vw,520px)]"
+            style={{ color: `${color}aa` }}
+          >
+            {lines.map((l, i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.5 + i * 0.18 }}
+              >
+                {l}
+              </motion.div>
+            ))}
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, letterSpacing: "0.5em", filter: "blur(10px)" }}
+            animate={{ opacity: 1, letterSpacing: "0.12em", filter: "blur(0px)" }}
+            transition={{ delay: 1.15, duration: 0.9, ease }}
+            className="text-center px-6"
+          >
+            <div className="font-mono text-xs tracking-[0.4em] mb-4" style={{ color }}>
+              {code}
+            </div>
+            <h1
+              className="font-sans font-bold text-4xl sm:text-6xl md:text-7xl tracking-tight"
+              style={{ color: "#fff", textShadow: `0 0 40px ${color}66` }}
+            >
+              {title}
+            </h1>
+            {subtitle && (
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 1.7 }}
+                className="mt-5 font-mono text-[11px] tracking-[0.35em] text-white/40 uppercase"
+              >
+                {subtitle}
+              </motion.p>
+            )}
+          </motion.div>
+        </div>
+      );
+    }
+
+    /* ============================================================
+       OBJETOS 3D ESQUEMÁTICOS (SIN BARCOS)
+    ============================================================ */
+    // Brújula
+    function Compass({ delay = 0 }) {
+      return (
+        <motion.div
+          initial={{ opacity: 0, rotateZ: -40, scale: 0.6 }}
+          animate={{ opacity: 1, rotateZ: 0, scale: 1 }}
+          transition={{ duration: 1, ease, delay }}
+          whileHover={{ scale: 1.08, rotateZ: 8 }}
+          className="relative w-40 h-40"
+          style={{ filter: "drop-shadow(0 22px 38px rgba(34,211,238,.35))" }}
+        >
+          <svg viewBox="0 0 200 200" className="w-full h-full">
+            <circle cx="100" cy="100" r="92" fill="none" stroke={CYAN} strokeOpacity=".25" strokeWidth="1" />
+            <circle cx="100" cy="100" r="78" fill="rgba(34,211,238,.04)" stroke={CYAN} strokeOpacity=".5" strokeWidth="1" />
+            {[...Array(36)].map((_, i) => (
+              <line key={i} x1="100" y1="14" x2="100"
+                y2={i % 9 === 0 ? "30" : "22"}
+                stroke={CYAN} strokeOpacity={i % 9 === 0 ? ".9" : ".3"} strokeWidth="1"
+                transform={`rotate(${i * 10} 100 100)`} />
+            ))}
+            <motion.g
+              animate={{ rotate: [0, 6, -4, 0] }}
+              transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+              style={{ transformOrigin: "100px 100px" }}>
+              <polygon points="100,32 110,100 100,118 90,100" fill={AMBER} fillOpacity=".9" />
+              <polygon points="100,168 110,100 100,82 90,100" fill={CYAN} fillOpacity=".55" />
+            </motion.g>
+            <circle cx="100" cy="100" r="6" fill="#04070d" stroke={AMBER} strokeWidth="1.5" />
+          </svg>
+          <span className="absolute -top-1 left-1/2 -translate-x-1/2 font-mono text-[10px] text-amber-neon">N</span>
+        </motion.div>
+      );
+    }
+
+    // Astrolabio
+    function Astrolabe({ delay = 0 }) {
+      return (
+        <motion.div
+          initial={{ opacity: 0, rotateZ: 35, scale: 0.6 }}
+          animate={{ opacity: 1, rotateZ: 0, scale: 1 }}
+          transition={{ duration: 1, ease, delay }}
+          whileHover={{ scale: 1.08, rotateZ: -8 }}
+          className="relative w-40 h-40"
+          style={{ filter: "drop-shadow(0 22px 38px rgba(251,191,36,.3))" }}
+        >
+          <svg viewBox="0 0 200 200" className="w-full h-full">
+            <circle cx="100" cy="100" r="90" fill="none" stroke={AMBER} strokeOpacity=".5" strokeWidth="1" />
+            <circle cx="100" cy="100" r="66" fill="none" stroke={AMBER} strokeOpacity=".3" strokeWidth="1" />
+            <circle cx="100" cy="100" r="42" fill="none" stroke={CYAN} strokeOpacity=".4" strokeWidth="1" />
+            <motion.g
+              animate={{ rotate: 360 }}
+              transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
+              style={{ transformOrigin: "100px 100px" }}>
+              <line x1="100" y1="14" x2="100" y2="186" stroke={CYAN} strokeOpacity=".5" />
+              <line x1="14" y1="100" x2="186" y2="100" stroke={CYAN} strokeOpacity=".5" />
+              <circle cx="100" cy="34" r="3.5" fill={AMBER} />
+            </motion.g>
+            <motion.g
+              animate={{ rotate: -360 }}
+              transition={{ duration: 18, repeat: Infinity, ease: "linear" }}
+              style={{ transformOrigin: "100px 100px" }}>
+              <line x1="32" y1="32" x2="168" y2="168" stroke={AMBER} strokeOpacity=".7" strokeWidth="1.5" />
+              <circle cx="32" cy="32" r="4" fill={CYAN} />
+            </motion.g>
+            <circle cx="100" cy="100" r="5" fill="#04070d" stroke={AMBER} strokeWidth="1.5" />
+          </svg>
+        </motion.div>
+      );
+    }
+
+    // Portulano (carta náutica esquemática — líneas de rumbo)
+    function Portulan({ delay = 0 }) {
+      const cx = 100, cy = 100;
+      const pts = [...Array(16)].map((_, i) => {
+        const a = (i / 16) * Math.PI * 2;
+        return [cx + Math.cos(a) * 80, cy + Math.sin(a) * 80];
+      });
+      return (
+        <motion.div
+          initial={{ opacity: 0, rotateZ: -20, scale: 0.6 }}
+          animate={{ opacity: 1, rotateZ: 0, scale: 1 }}
+          transition={{ duration: 1, ease, delay }}
+          whileHover={{ scale: 1.08, rotateZ: 6 }}
+          className="relative w-40 h-40"
+          style={{ filter: "drop-shadow(0 22px 38px rgba(34,211,238,.3))" }}
+        >
+          <svg viewBox="0 0 200 200" className="w-full h-full">
+            <rect x="14" y="14" width="172" height="172" rx="6" fill="rgba(34,211,238,.03)" stroke={CYAN} strokeOpacity=".3" />
+            {pts.map(([x, y], i) =>
+              pts.map(([x2, y2], j) =>
+                j > i ? (
+                  <line key={`${i}-${j}`} x1={x} y1={y} x2={x2} y2={y2}
+                    stroke={(i + j) % 4 === 0 ? AMBER : CYAN}
+                    strokeOpacity={(i + j) % 4 === 0 ? ".22" : ".10"} strokeWidth=".6" />
+                ) : null
+              )
+            )}
+            <circle cx={cx} cy={cy} r="80" fill="none" stroke={CYAN} strokeOpacity=".4" />
+            <circle cx={cx} cy={cy} r="3" fill={AMBER} />
+          </svg>
+        </motion.div>
+      );
+    }
+
+    /* ============================================================
+       SLIDES
+    ============================================================ */
+
+    // 01 — HERO
+    function SlideHero() {
+      return (
+        <div className="relative h-full flex flex-col items-center justify-center text-center px-6">
+          <motion.div {...stagger(0)}>
+            <Tag>SISTEMA INICIALIZADO</Tag>
+          </motion.div>
+          <motion.h1
+            initial={{ opacity: 0, y: 30, filter: "blur(12px)" }}
+            animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+            transition={{ duration: 1, ease, delay: 0.15 }}
+            className="mt-8 font-sans font-bold text-5xl sm:text-7xl md:text-8xl leading-[0.95] tracking-tight text-white"
+          >
+            HISTORIA<br />
+            <span className="text-cyan-neon text-glow-cyan">GLOBAL</span>
+          </motion.h1>
+          <motion.p {...stagger(4)} className="mt-6 font-mono text-sm tracking-[0.35em] text-amber-neon text-glow-amber">
+            SIGLOS XIV — XVIII
+          </motion.p>
+
+          <motion.div {...stagger(7)} className="mt-12 flex flex-col sm:flex-row items-center gap-4">
+            {["Aarón Villalba", "Marcos Vilte"].map((n) => (
+              <div key={n} className="glass rounded-xl px-6 py-3 font-mono text-sm text-white/80 tracking-wide box-glow-cyan">
+                <span className="text-cyan-neon/60 mr-2">◦</span>{n}
+              </div>
+            ))}
+          </motion.div>
+          <motion.p {...stagger(10)} className="mt-10 font-mono text-[11px] tracking-[0.3em] text-white/30">
+            PRESIONÁ → PARA INICIAR EL RECORRIDO
+          </motion.p>
+        </div>
+      );
+    }
+
+    // 03 — CRISIS 1453
+    function SlideCrisis() {
+      const items = [
+        { t: "Problemas con Oriente", d: "El monopolio de turcos, árabes e italianos encarecía la seda y las especias. Demasiados intermediarios y peajes.", c: AMBER },
+        { t: "Vías alternativas", d: "Había que rodear África por el Atlántico o buscar una ruta por el Oeste para llegar al Lejano Oriente.", c: CYAN },
+        { t: "Motivos de expansión", d: "Oro y especias, expansión del cristianismo, prestigio de las monarquías y nuevas tierras.", c: CYAN },
+      ];
+      return (
+        <div className="relative h-full flex flex-col justify-center px-8 sm:px-16 max-w-6xl mx-auto w-full">
+          <motion.div {...stagger(0)}><Tag color={AMBER}>TP3 · CRISIS DE LAS RUTAS</Tag></motion.div>
+          <motion.h2 {...stagger(1)} className="mt-5 font-sans font-bold text-4xl sm:text-5xl text-white">
+            1453 · Caída de <span className="text-amber-neon text-glow-amber">Constantinopla</span>
+          </motion.h2>
+          <motion.p {...stagger(2)} className="mt-3 text-white/55 max-w-2xl font-sans">
+            Los otomanos toman la ciudad y bloquean las rutas terrestres hacia Asia. La <b className="text-cyan-neon">Ruta de la Seda</b> y la <b className="text-amber-neon">Ruta de las Especias</b> quedan cortadas para los europeos.
+          </motion.p>
+
+          {/* mapa conceptual */}
+          <motion.div {...stagger(3)} className="mt-8 glass rounded-2xl p-5 flex items-center gap-3 font-mono text-[11px] sm:text-xs overflow-x-auto box-glow-cyan">
+            {["EUROPA", "▣ CONSTANTINOPLA", "ASIA / ORIENTE"].map((n, i) => (
+              <React.Fragment key={n}>
+                <span className={i === 1 ? "text-red-400 px-3 py-2 rounded-lg border border-red-400/40 bg-red-400/5 whitespace-nowrap" : "text-white/70 whitespace-nowrap"}>{n}</span>
+                {i < 2 && (
+                  <span className="text-cyan-neon/60 flex items-center gap-1">
+                    ──{i === 0 ? "✕" : "→"}──
+                  </span>
+                )}
+              </React.Fragment>
+            ))}
+            <span className="ml-auto text-amber-neon/70 whitespace-nowrap">BLOQUEO COMERCIAL</span>
+          </motion.div>
+
+          <div className="mt-6 grid sm:grid-cols-3 gap-4">
+            {items.map((it, i) => (
+              <motion.div key={it.t} {...stagger(4 + i)}>
+                <GlassCard accent={it.c} className="h-full">
+                  <div className="font-mono text-[10px] tracking-[0.2em]" style={{ color: it.c }}>0{i + 1}</div>
+                  <h3 className="mt-2 font-semibold text-white">{it.t}</h3>
+                  <p className="mt-2 text-sm text-white/55 leading-relaxed">{it.d}</p>
+                </GlassCard>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    // 04 — TECH HUB
+    function SlideTech() {
+      const tech = [
+        { node: <Compass />, t: "BRÚJULA", d: "Aguja magnética que indica el Norte. Permite orientarse sin ver la costa ni las estrellas." },
+        { node: <Astrolabe />, t: "ASTROLABIO", d: "Mide la altura del sol y los astros para calcular la latitud en alta mar." },
+        { node: <Portulan />, t: "PORTULANOS", d: "Cartas náuticas con líneas de rumbo: registran costas, puertos y direcciones." },
+      ];
+      return (
+        <div className="relative h-full flex flex-col justify-center px-8 sm:px-16 max-w-6xl mx-auto w-full">
+          <motion.div {...stagger(0)}><Tag>TP3 · ADELANTOS TÉCNICOS</Tag></motion.div>
+          <motion.h2 {...stagger(1)} className="mt-5 font-sans font-bold text-4xl sm:text-5xl text-white">
+            Tecnología de la <span className="text-cyan-neon text-glow-cyan">expansión</span>
+          </motion.h2>
+          <motion.p {...stagger(2)} className="mt-3 text-white/55 max-w-2xl font-sans">
+            Instrumentos de navegación y cartografía que hicieron posible cruzar océanos abiertos.
+          </motion.p>
+
+          <div className="mt-10 grid sm:grid-cols-3 gap-6">
+            {tech.map((it, i) => (
+              <motion.div key={it.t} {...stagger(3 + i)}>
+                <GlassCard className="h-full flex flex-col items-center text-center py-8">
+                  <div className="mb-5">{it.node}</div>
+                  <h3 className="font-mono tracking-[0.2em] text-cyan-neon text-sm">{it.t}</h3>
+                  <p className="mt-3 text-sm text-white/55 leading-relaxed">{it.d}</p>
+                </GlassCard>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    // 05 — TORDESILLAS
+    function SlideTordesillas() {
+      return (
+        <div className="relative h-full flex flex-col lg:flex-row items-center justify-center gap-12 px-8 sm:px-16 max-w-6xl mx-auto w-full">
+          <div className="flex-1">
+            <motion.div {...stagger(0)}><Tag color={AMBER}>TP3 · 1494</Tag></motion.div>
+            <motion.h2 {...stagger(1)} className="mt-5 font-sans font-bold text-4xl sm:text-5xl text-white">
+              Tratado de <span className="text-amber-neon text-glow-amber">Tordesillas</span>
+            </motion.h2>
+            <motion.p {...stagger(2)} className="mt-4 text-white/60 max-w-md font-sans leading-relaxed">
+              Tras la bula <i>Inter Caetera</i> (1493), España y Portugal repartieron el mundo con una línea imaginaria <b className="text-cyan-neon">370 leguas al oeste de Cabo Verde</b>.
+            </motion.p>
+            <div className="mt-6 space-y-3">
+              {[
+                { l: "OESTE → CASTILLA (España)", c: CYAN },
+                { l: "ESTE → PORTUGAL", c: AMBER },
+              ].map((r, i) => (
+                <motion.div key={r.l} {...stagger(3 + i)} className="glass rounded-xl px-4 py-3 font-mono text-xs flex items-center gap-3">
+                  <span className="w-2.5 h-2.5 rounded-full" style={{ background: r.c, boxShadow: `0 0 10px ${r.c}` }} />
+                  <span className="text-white/80">{r.l}</span>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+
+          {/* Globo partido */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.6, rotateZ: 20 }}
+            animate={{ opacity: 1, scale: 1, rotateZ: 0 }}
+            transition={{ duration: 1.1, ease, delay: 0.2 }}
+            className="relative w-64 h-64 sm:w-80 sm:h-80"
+            style={{ filter: "drop-shadow(0 30px 50px rgba(34,211,238,.25))" }}
+          >
+            <svg viewBox="0 0 300 300" className="w-full h-full">
+              <defs>
+                <clipPath id="globe"><circle cx="150" cy="150" r="130" /></clipPath>
+              </defs>
+              <circle cx="150" cy="150" r="130" fill="none" stroke="#ffffff22" />
+              <g clipPath="url(#globe)">
+                <rect x="20" y="20" width="130" height="260" fill={CYAN} fillOpacity=".07" />
+                <rect x="150" y="20" width="130" height="260" fill={AMBER} fillOpacity=".07" />
+                {[...Array(7)].map((_, i) => (
+                  <ellipse key={i} cx="150" cy="150" rx={130 - i * 0} ry={20 + i * 18} fill="none" stroke="#ffffff10" />
+                ))}
+                {[...Array(7)].map((_, i) => (
+                  <line key={i} x1={20 + i * 43} y1="20" x2={20 + i * 43} y2="280" stroke="#ffffff0d" />
+                ))}
+              </g>
+              <motion.line
+                x1="150" y1="6" x2="150" y2="294"
+                stroke={AMBER} strokeWidth="2" strokeDasharray="6 6"
+                initial={{ pathLength: 0 }} animate={{ pathLength: 1 }}
+                transition={{ duration: 1.2, delay: 0.8, ease }}
+                style={{ filter: `drop-shadow(0 0 8px ${AMBER})` }}
+              />
+              <circle cx="150" cy="150" r="130" fill="none" stroke={CYAN} strokeOpacity=".4" />
+            </svg>
+            <span className="absolute top-2 left-1/2 -translate-x-1/2 font-mono text-[10px] text-amber-neon">LÍNEA · 370 LEGUAS</span>
+          </motion.div>
+        </div>
+      );
+    }
+
+    // 07 — ETAPAS (timeline)
+    function SlideEtapas() {
+      const stages = [
+        { y: "1492–1519", t: "CARIBE / ANTILLAS", d: "Primeros asentamientos en las islas. Saqueo de oro, encomiendas iniciales y exploración del continente.", c: CYAN },
+        { y: "1519–1540", t: "GRANDES IMPERIOS", d: "Conquista de los imperios Azteca (Cortés, 1521) e Inca (Pizarro, 1533). Sociedades densas y ricas.", c: AMBER },
+        { y: "1540 →", t: "PERIFERIA", d: "Avance sobre las zonas marginales: Río de la Plata, Chile, fronteras sin metales ni grandes imperios.", c: CYAN },
+      ];
+      return (
+        <div className="relative h-full flex flex-col justify-center px-8 sm:px-16 max-w-6xl mx-auto w-full">
+          <motion.div {...stagger(0)}><Tag color={AMBER}>TP4 · ETAPAS DE LA CONQUISTA</Tag></motion.div>
+          <motion.h2 {...stagger(1)} className="mt-5 font-sans font-bold text-4xl sm:text-5xl text-white">
+            Línea de <span className="text-amber-neon text-glow-amber">tiempo</span>
+          </motion.h2>
+
+          <div className="mt-12 relative">
+            <motion.div
+              initial={{ scaleX: 0 }} animate={{ scaleX: 1 }}
+              transition={{ duration: 1, ease, delay: 0.4 }}
+              className="absolute top-3 left-0 right-0 h-px origin-left"
+              style={{ background: `linear-gradient(90deg, ${CYAN}, ${AMBER})`, boxShadow: `0 0 12px ${CYAN}66` }}
+            />
+            <div className="grid sm:grid-cols-3 gap-6">
+              {stages.map((s, i) => (
+                <motion.div key={s.t} {...stagger(2 + i, 0.3)}>
+                  <div className="w-3 h-3 rounded-full mb-6 -mt-[5px]" style={{ background: s.c, boxShadow: `0 0 12px ${s.c}` }} />
+                  <GlassCard accent={s.c} className="h-full">
+                    <div className="font-mono text-xs tracking-[0.2em]" style={{ color: s.c }}>{s.y}</div>
+                    <h3 className="mt-2 font-sans font-bold text-lg text-white">{s.t}</h3>
+                    <p className="mt-3 text-sm text-white/55 leading-relaxed">{s.d}</p>
+                  </GlassCard>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // 08 — SISTEMAS (cuadro comparativo)
+    function SlideSistemas() {
+      const sys = [
+        { t: "ENCOMIENDA", q: "¿Trabajo?", d: "Grupos de indígenas eran 'encomendados' a un español. Debían tributo y trabajo a cambio de protección y evangelización. En la práctica: explotación.", c: AMBER },
+        { t: "REQUERIMIENTO", q: "¿Sumisión?", d: "Texto leído a los indígenas exigiendo aceptar al Rey y la fe. Si se negaban, justificaba la 'Guerra Justa' y su sometimiento por la fuerza.", c: CYAN },
+        { t: "LEYES NUEVAS · 1542", q: "¿Protección?", d: "Prohíben la esclavitud indígena y limitan la encomienda (no hereditaria). Influidas por Bartolomé de Las Casas y la Polémica de los Naturales.", c: AMBER },
+      ];
+      return (
+        <div className="relative h-full flex flex-col justify-center px-8 sm:px-16 max-w-6xl mx-auto w-full">
+          <motion.div {...stagger(0)}><Tag>TP4 · SISTEMAS DE DOMINACIÓN</Tag></motion.div>
+          <motion.h2 {...stagger(1)} className="mt-5 font-sans font-bold text-4xl sm:text-5xl text-white">
+            Cuadro <span className="text-cyan-neon text-glow-cyan">comparativo</span>
+          </motion.h2>
+
+          <div className="mt-10 grid md:grid-cols-3 gap-5">
+            {sys.map((s, i) => (
+              <motion.div key={s.t} {...stagger(2 + i)}>
+                <GlassCard accent={s.c} className="h-full">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-mono tracking-[0.15em] text-sm" style={{ color: s.c }}>{s.t}</h3>
+                    <span className="font-mono text-[10px] text-white/30">{s.q}</span>
+                  </div>
+                  <div className="my-4 h-px w-full" style={{ background: `${s.c}33` }} />
+                  <p className="text-sm text-white/60 leading-relaxed">{s.d}</p>
+                </GlassCard>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    // 09 — FACTORES DE VICTORIA
+    function SlideVictoria() {
+      const f = [
+        { ic: "⚔", t: "TÉCNICA", d: "Armas de fuego, acero, caballos y perros de guerra: ventaja militar frente a armas de piedra y madera.", c: CYAN },
+        { ic: "✝", t: "RELIGIÓN", d: "La evangelización legitimó la conquista y debilitó las creencias y la cohesión de los pueblos sometidos.", c: AMBER },
+        { ic: "⚑", t: "ALIANZAS", d: "Pueblos sometidos por aztecas e incas se aliaron con los españoles contra sus antiguos dominadores.", c: CYAN },
+        { ic: "☣", t: "EPIDEMIAS", d: "Viruela, sarampión y gripe: sin defensas, la población indígena colapsó. El factor más letal.", c: AMBER },
+      ];
+      return (
+        <div className="relative h-full flex flex-col justify-center px-8 sm:px-16 max-w-6xl mx-auto w-full">
+          <motion.div {...stagger(0)}><Tag color={AMBER}>TP4 · FACTORES DE VICTORIA</Tag></motion.div>
+          <motion.h2 {...stagger(1)} className="mt-5 font-sans font-bold text-4xl sm:text-5xl text-white">
+            ¿Por qué <span className="text-amber-neon text-glow-amber">ganó</span> Europa?
+          </motion.h2>
+
+          <div className="mt-10 grid grid-cols-2 lg:grid-cols-4 gap-5">
+            {f.map((it, i) => (
+              <motion.div key={it.t} {...stagger(2 + i)}>
+                <GlassCard accent={it.c} className="h-full">
+                  <motion.div
+                    whileHover={{ scale: 1.2, rotate: 8 }}
+                    className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl mb-4"
+                    style={{ color: it.c, border: `1px solid ${it.c}44`, background: `${it.c}0d` }}
+                  >
+                    {it.ic}
+                  </motion.div>
+                  <h3 className="font-mono tracking-[0.15em] text-sm" style={{ color: it.c }}>{it.t}</h3>
+                  <p className="mt-3 text-sm text-white/55 leading-relaxed">{it.d}</p>
+                </GlassCard>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    // 10 — CORRIENTES ARGENTINA
+    function SlideCorrientes() {
+      const c = [
+        { dir: "ESTE", from: "Desde el Atlántico / España", cities: "Buenos Aires (1536–1580)", c: CYAN, x: 75, y: 70 },
+        { dir: "NORTE", from: "Desde el Alto Perú", cities: "Santiago del Estero, Tucumán, Córdoba", c: AMBER, x: 50, y: 22 },
+        { dir: "OESTE", from: "Desde Chile", cities: "Mendoza, San Juan, San Luis (Cuyo)", c: CYAN, x: 22, y: 58 },
+      ];
+      return (
+        <div className="relative h-full flex flex-col lg:flex-row items-center justify-center gap-10 px-8 sm:px-16 max-w-6xl mx-auto w-full">
+          <div className="flex-1">
+            <motion.div {...stagger(0)}><Tag>TP4 · CORRIENTES COLONIZADORAS</Tag></motion.div>
+            <motion.h2 {...stagger(1)} className="mt-5 font-sans font-bold text-4xl sm:text-5xl text-white">
+              Poblamiento del <span className="text-cyan-neon text-glow-cyan">actual territorio argentino</span>
+            </motion.h2>
+            <div className="mt-6 space-y-4">
+              {c.map((it, i) => (
+                <motion.div key={it.dir} {...stagger(2 + i)}>
+                  <GlassCard accent={it.c}>
+                    <div className="flex items-center gap-3">
+                      <span className="font-mono text-xs px-2 py-1 rounded" style={{ color: it.c, border: `1px solid ${it.c}44` }}>{it.dir}</span>
+                      <span className="text-white/50 text-sm font-sans">{it.from}</span>
+                    </div>
+                    <p className="mt-2 text-white/75 text-sm font-mono">{it.cities}</p>
+                  </GlassCard>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+
+          {/* mapa esquemático */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.7 }} animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 1, ease, delay: 0.3 }}
+            className="relative w-72 h-80 hud-grid rounded-2xl border border-white/10 overflow-hidden"
+          >
+            <svg viewBox="0 0 100 110" className="w-full h-full">
+              <path d="M48 6 L60 24 L66 50 L60 78 L52 102 L44 92 L40 70 L36 46 L40 22 Z"
+                fill="rgba(34,211,238,.05)" stroke={CYAN} strokeOpacity=".35" strokeWidth=".6" />
+              {c.map((it, i) => (
+                <g key={i}>
+                  <motion.line
+                    x1={it.dir === "ESTE" ? 95 : it.dir === "NORTE" ? 50 : 5}
+                    y1={it.dir === "ESTE" ? 60 : it.dir === "NORTE" ? 2 : 50}
+                    x2={it.x} y2={it.y}
+                    stroke={it.c} strokeWidth=".8" strokeDasharray="2 2"
+                    initial={{ pathLength: 0 }} animate={{ pathLength: 1 }}
+                    transition={{ duration: 1, delay: 0.8 + i * 0.3 }}
+                    style={{ filter: `drop-shadow(0 0 3px ${it.c})` }} />
+                  <motion.circle cx={it.x} cy={it.y} r="2.5" fill={it.c}
+                    initial={{ scale: 0 }} animate={{ scale: 1 }}
+                    transition={{ delay: 1.5 + i * 0.3, type: "spring" }}
+                    style={{ filter: `drop-shadow(0 0 5px ${it.c})` }} />
+                </g>
+              ))}
+            </svg>
+          </motion.div>
+        </div>
+      );
+    }
+
+    // 11 — CIERRE
+    function SlideFinal() {
+      return (
+        <div className="relative h-full flex flex-col items-center justify-center text-center px-6">
+          <motion.div
+            initial={{ scaleX: 0 }} animate={{ scaleX: 1 }}
+            transition={{ duration: 0.8, ease }}
+            className="w-40 h-px mb-10" style={{ background: CYAN, boxShadow: `0 0 14px ${CYAN}` }}
+          />
+          <motion.p {...stagger(1)} className="font-mono text-xs tracking-[0.4em] text-cyan-neon">
+            CIERRE DE SISTEMA
+          </motion.p>
+          <motion.h2
+            initial={{ opacity: 0, y: 20, filter: "blur(10px)" }}
+            animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+            transition={{ duration: 0.9, ease, delay: 0.2 }}
+            className="mt-6 font-sans font-bold text-4xl sm:text-6xl text-white"
+          >
+            Gracias por su <span className="text-cyan-neon text-glow-cyan">atención</span>
+          </motion.h2>
+          <motion.div {...stagger(5)} className="mt-10 glass rounded-2xl px-8 py-5 box-glow-cyan">
+            <p className="font-mono text-[10px] tracking-[0.3em] text-white/40">DOCENTE</p>
+            <p className="mt-2 font-sans text-xl text-amber-neon text-glow-amber">Profe Lucas Raffo Benegas</p>
+          </motion.div>
+          <motion.div {...stagger(8)} className="mt-8 flex gap-4 font-mono text-xs text-white/40">
+            <span>Aarón Villalba</span><span className="text-cyan-neon/40">·</span><span>Marcos Vilte</span>
+          </motion.div>
+          <motion.p {...stagger(11)} className="mt-12 font-mono text-[10px] tracking-[0.3em] text-white/20">
+            // END OF TRANSMISSION
+          </motion.p>
+        </div>
+      );
+    }
+
+    /* ============================================================
+       REGISTRO DE SLIDES
+    ============================================================ */
+    const SLIDES = [
+      { id: "hero", label: "INICIO", render: () => <SlideHero /> },
+      { id: "boot-tp3", label: "BOOT · TP3", boot: { code: "MÓDULO 03 · CARGANDO", title: "EXPANSIÓN EUROPEA", subtitle: "Siglo XV · Nuevas rutas al mundo", color: CYAN } },
+      { id: "crisis", label: "CRISIS 1453", render: () => <SlideCrisis /> },
+      { id: "tech", label: "TECNOLOGÍA", render: () => <SlideTech /> },
+      { id: "tordesillas", label: "TORDESILLAS", render: () => <SlideTordesillas /> },
+      { id: "boot-tp4", label: "BOOT · TP4", boot: { code: "MÓDULO 04 · CARGANDO", title: "CONQUISTA DE AMÉRICA", subtitle: "Siglo XVI · Dominación y choque de mundos", color: AMBER } },
+      { id: "etapas", label: "ETAPAS", render: () => <SlideEtapas /> },
+      { id: "sistemas", label: "SISTEMAS", render: () => <SlideSistemas /> },
+      { id: "victoria", label: "VICTORIA", render: () => <SlideVictoria /> },
+      { id: "corrientes", label: "CORRIENTES", render: () => <SlideCorrientes /> },
+      { id: "final", label: "CIERRE", render: () => <SlideFinal /> },
+    ];
+
+    /* ============================================================
+       APP
+    ============================================================ */
+    function App() {
+      const [i, setI] = useState(0);
+      const [dir, setDir] = useState(1);
+      const total = SLIDES.length;
+
+      const go = useCallback((n) => {
+        setI((prev) => {
+          const next = Math.min(Math.max(prev + n, 0), total - 1);
+          setDir(n >= 0 ? 1 : -1);
+          return next;
+        });
+      }, [total]);
+
+      useEffect(() => {
+        const onKey = (e) => {
+          if (e.key === "ArrowRight" || e.key === " " || e.key === "Enter") { e.preventDefault(); go(1); }
+          else if (e.key === "ArrowLeft") { e.preventDefault(); go(-1); }
+          else if (e.key === "Home") setI(0);
+          else if (e.key === "End") setI(total - 1);
+        };
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+      }, [go, total]);
+
+      const slide = SLIDES[i];
+
+      const variants = {
+        enter: (d) => ({ opacity: 0, x: d > 0 ? 80 : -80, filter: "blur(8px)" }),
+        center: { opacity: 1, x: 0, filter: "blur(0px)" },
+        exit: (d) => ({ opacity: 0, x: d > 0 ? -80 : 80, filter: "blur(8px)" }),
+      };
+
+      return (
+        <div className="relative h-full w-full bg-ink text-white overflow-hidden scanlines select-none">
+          {/* Fondo */}
+          <div className="absolute inset-0 hud-grid opacity-60" />
+          <div className="absolute inset-0" style={{ background: "radial-gradient(1200px 700px at 50% -10%, rgba(34,211,238,.10), transparent 60%), radial-gradient(900px 600px at 90% 110%, rgba(251,191,36,.07), transparent 60%)" }} />
+          <motion.div
+            className="absolute left-0 right-0 h-24 pointer-events-none z-10"
+            style={{ background: "linear-gradient(180deg, transparent, rgba(34,211,238,.06), transparent)" }}
+            animate={{ y: ["-10%", "110%"] }}
+            transition={{ duration: 7, repeat: Infinity, ease: "linear" }}
+          />
+
+          <HUDFrame index={i} total={total} label={slide.label} />
+
+          {/* Contenido */}
+          <div className="absolute inset-0 z-20">
+            <AnimatePresence mode="wait" custom={dir}>
+              {slide.boot ? (
+                <motion.div
+                  key={slide.id}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.4 }}
+                  className="absolute inset-0"
+                >
+                  <BootScan {...slide.boot} />
+                </motion.div>
+              ) : (
+                <motion.div
+                  key={slide.id}
+                  custom={dir}
+                  variants={variants}
+                  initial="enter"
+                  animate="center"
+                  exit="exit"
+                  transition={{ duration: 0.6, ease }}
+                  className="absolute inset-0"
+                >
+                  {slide.render()}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* Navegación */}
+          <div className="absolute bottom-16 left-1/2 -translate-x-1/2 z-40 flex items-center gap-5">
+            <NavBtn onClick={() => go(-1)} disabled={i === 0} dir="left" />
+            <div className="flex items-center gap-1.5">
+              {SLIDES.map((s, idx) => (
+                <button
+                  key={s.id}
+                  onClick={() => { setDir(idx > i ? 1 : -1); setI(idx); }}
+                  className="h-1.5 rounded-full transition-all duration-300"
+                  style={{
+                    width: idx === i ? 26 : 7,
+                    background: idx === i ? CYAN : "rgba(255,255,255,.2)",
+                    boxShadow: idx === i ? `0 0 10px ${CYAN}` : "none",
+                  }}
+                  aria-label={s.label}
+                />
+              ))}
+            </div>
+            <NavBtn onClick={() => go(1)} disabled={i === total - 1} dir="right" />
+          </div>
+        </div>
+      );
+    }
+
+    function NavBtn({ onClick, disabled, dir }) {
+      return (
+        <motion.button
+          whileHover={{ scale: disabled ? 1 : 1.12 }}
+          whileTap={{ scale: disabled ? 1 : 0.92 }}
+          onClick={onClick}
+          disabled={disabled}
+          className="glass w-11 h-11 rounded-full flex items-center justify-center text-cyan-neon disabled:opacity-25 disabled:cursor-not-allowed"
+          style={{ border: `1px solid ${CYAN}33` }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            {dir === "left" ? <polyline points="15 18 9 12 15 6" /> : <polyline points="9 18 15 12 9 6" />}
+          </svg>
+        </motion.button>
+      );
+    }
+
+    createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>
